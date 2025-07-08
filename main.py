@@ -27,7 +27,7 @@ def extract_chn_fast(frame, crop_box):
     for word in data["text"]:
         if word and re.match(r"^[\d.]+$", word):
             try:
-                return float(word)  
+                return float(word)
             except:
                 continue
     return None
@@ -175,12 +175,19 @@ if __name__ == "__main__":
         f'Lane R4 {lane} Area (% area) Unnamed: {66 + idx}_level_2'
     ]
 
-    selected_cols = global_cols + limitation_cols + lane_cols
+    latlong_cols = [
+        f'Lane {lane} Start Latitude',
+        f'Lane {lane} Start Longitude'
+    ]
+
+    selected_cols = global_cols + limitation_cols + lane_cols + latlong_cols
     filtered_df = df[selected_cols].copy()
+
     filtered_df.columns = [
         "NH Number", "Start Chainage", "End Chainage", "Length", "Structure Details",
         "BI Limit", "Rut Limit", "Crack Limit", "Ravelling Limit",
-        "Roughness", "Rut Depth", "Crack Area", "Ravelling"
+        "Roughness", "Rut Depth", "Crack Area", "Ravelling",
+        "Start Lat", "Start Long"
     ]
 
     chn_excel_list = filtered_df["Start Chainage"].dropna().astype(int).tolist()
@@ -211,6 +218,7 @@ if __name__ == "__main__":
         "nh", "chn_start", "chn_end", "length", "structure",
         "roughness_limit", "rut_limit", "crack_limit", "ravelling_limit",
         "roughness", "rut_depth", "crack_area", "area",
+        "start_lat", "start_long",
         "frame", "timestamp"
     ]
 
