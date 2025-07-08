@@ -34,6 +34,8 @@ def extract_chn_fast(frame, crop_box):
 
 
 def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip, results, chn_excel_list):
+    entered_interval_mode = False
+
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
@@ -64,13 +66,12 @@ def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip,
             continue
 
         if not first_found:
-            results.append((frame_index, matched_chn, timestamp_sec))
+            results.append((frame_index, matched_chn, timestamp_sec))  
             first_found = True
             last_chn = matched_chn
-            frame_index += frame_skip
-            for _ in range(frame_skip - 1):
-                cap.grab()
+            frame_index += 1
             continue
+
 
         if matched_chn == last_chn:
             stall_counter += 1
@@ -92,9 +93,15 @@ def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip,
 
         if matched_chn % 100 == 0:
             results.append((frame_index, matched_chn, timestamp_sec))
-            frame_index += frame_skip
-            for _ in range(frame_skip - 1):
-                cap.grab()
+            last_chn = matched_chn
+            entered_interval_mode = True
+            if entered_interval_mode:
+                frame_index += frame_skip
+                for _ in range(frame_skip - 1):
+                    cap.grab()
+            else:
+                frame_index += 1
+
         else:
             frame_index += 1
 
