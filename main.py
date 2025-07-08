@@ -4,6 +4,7 @@ from PIL import Image
 import os
 import re
 import time
+import math
 import multiprocessing
 import pandas as pd
 from multiprocessing import Manager
@@ -14,6 +15,8 @@ FRAME_SKIP = CHN_TARGET_INTERVAL // CHN_INCREMENT_PER_FRAME
 STALL_FRAME_LIMIT = 5
 STALL_PROBE_STEP = 3
 MAX_STALL_SCAN = 20
+TOLERANCE = 0.0000025
+
 
 def extract_chn_fast(frame, crop_box):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -24,12 +27,13 @@ def extract_chn_fast(frame, crop_box):
     for word in data["text"]:
         if word and re.match(r"^[\d.]+$", word):
             try:
-                return int(float(word))
+                return float(word)  
             except:
                 continue
     return None
 
-def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip, results):
+
+def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip, results, chn_excel_list):
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 
@@ -37,19 +41,6 @@ def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip,
     first_found = False
     last_chn = None
     stall_counter = 0
-
-    if frame_index == 0:
-        ret, frame = cap.read()
-        if ret:
-            timestamp_sec = frame_index / fps
-            chn = extract_chn_fast(frame, crop_box)
-            if chn is not None:
-                results.append((frame_index, chn, timestamp_sec))
-                last_chn = chn
-                first_found = True
-                frame_index += frame_skip
-                for _ in range(frame_skip - 1):
-                    cap.grab()
 
     while frame_index < end_frame:
         ret, frame = cap.read()
@@ -62,19 +53,26 @@ def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip,
             frame_index += 1
             continue
 
-        if not first_found:
-            if chn % 100 == 0:
-                results.append((frame_index, chn, timestamp_sec))
-                first_found = True
-                last_chn = chn
-                frame_index += frame_skip
-                for _ in range(frame_skip - 1):
-                    cap.grab()
-            else:
-                frame_index += 1
+        matched_chn = None
+        for excel_chn in chn_excel_list:
+            if abs(chn - excel_chn) <= TOLERANCE * excel_chn:
+                matched_chn = excel_chn
+                break
+
+        if matched_chn is None:
+            frame_index += 1
             continue
 
-        if chn == last_chn:
+        if not first_found:
+            results.append((frame_index, matched_chn, timestamp_sec))
+            first_found = True
+            last_chn = matched_chn
+            frame_index += frame_skip
+            for _ in range(frame_skip - 1):
+                cap.grab()
+            continue
+
+        if matched_chn == last_chn:
             stall_counter += 1
             if stall_counter <= STALL_FRAME_LIMIT:
                 frame_index += 1
@@ -90,9 +88,10 @@ def process_chunk(start_frame, end_frame, crop_box, video_path, fps, frame_skip,
             continue
 
         stall_counter = 0
-        last_chn = chn
-        if chn % 100 == 0:
-            results.append((frame_index, chn, timestamp_sec))
+        last_chn = matched_chn
+
+        if matched_chn % 100 == 0:
+            results.append((frame_index, matched_chn, timestamp_sec))
             frame_index += frame_skip
             for _ in range(frame_skip - 1):
                 cap.grab()
@@ -124,7 +123,7 @@ if __name__ == "__main__":
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.release()
 
-    print(f"Video FPS: {fps:.2f} | Total Frames: {total_frames}")
+    print(f"🎞️ Video FPS: {fps:.2f} | Total Frames: {total_frames}")
 
     cap = cv2.VideoCapture(video_path)
     crop_box = None
@@ -145,8 +144,9 @@ if __name__ == "__main__":
         if crop_box:
             break
     cap.release()
+
     if not crop_box:
-        print("Could not detect 'Chn:' in initial frames.")
+        print("❌ Could not detect 'Chn:' in initial frames.")
         exit(1)
 
     df = pd.read_excel(excel_path, header=[0, 1, 2])
@@ -167,21 +167,23 @@ if __name__ == "__main__":
         'Lane R4 Limitation of Ravelling as per Concession Agreement (in % area) Unnamed: 65_level_2'
     ]
 
+    idx = ["L1", "L2", "L3", "L4", "R1", "R2", "R3", "R4"].index(lane)
     lane_cols = [
-        f'Lane R4 {lane} Lane Roughness BI (in mm/km) Unnamed: {39 + ["L1","L2","L3","L4","R1","R2","R3","R4"].index(lane)}_level_2',
-        f'Lane R4 {lane} Rut Depth (in mm) Unnamed: {48 + ["L1","L2","L3","L4","R1","R2","R3","R4"].index(lane)}_level_2',
-        f'Lane R4 {lane} Crack Area (in % area) Unnamed: {57 + ["L1","L2","L3","L4","R1","R2","R3","R4"].index(lane)}_level_2',
-        f'Lane R4 {lane} Area (% area) Unnamed: {66 + ["L1","L2","L3","L4","R1","R2","R3","R4"].index(lane)}_level_2'
+        f'Lane R4 {lane} Lane Roughness BI (in mm/km) Unnamed: {39 + idx}_level_2',
+        f'Lane R4 {lane} Rut Depth (in mm) Unnamed: {48 + idx}_level_2',
+        f'Lane R4 {lane} Crack Area (in % area) Unnamed: {57 + idx}_level_2',
+        f'Lane R4 {lane} Area (% area) Unnamed: {66 + idx}_level_2'
     ]
 
     selected_cols = global_cols + limitation_cols + lane_cols
     filtered_df = df[selected_cols].copy()
-    filtered_df.columns = ["NH Number", "Start Chainage", "End Chainage", "Length", "Structure Details",
-                           "BI Limit", "Rut Limit", "Crack Limit", "Ravelling Limit",
-                           "Roughness", "Rut Depth", "Crack Area", "Ravelling"]
+    filtered_df.columns = [
+        "NH Number", "Start Chainage", "End Chainage", "Length", "Structure Details",
+        "BI Limit", "Rut Limit", "Crack Limit", "Ravelling Limit",
+        "Roughness", "Rut Depth", "Crack Area", "Ravelling"
+    ]
 
-    chn_excel = filtered_df["Start Chainage"].astype(int).tolist()
-    chn_excel_set = set(chn_excel)
+    chn_excel_list = filtered_df["Start Chainage"].dropna().astype(int).tolist()
 
     manager = Manager()
     shared_results = manager.list()
@@ -192,23 +194,16 @@ if __name__ == "__main__":
 
     print(f"⚙️ Spawning {num_cores} processes...")
     with multiprocessing.Pool(num_cores) as pool:
-        args = [(start_f, end_f, crop_box, video_path, fps, FRAME_SKIP, shared_results) for (start_f, end_f) in ranges]
+        args = [(start_f, end_f, crop_box, video_path, fps, FRAME_SKIP, shared_results, chn_excel_list) for (start_f, end_f) in ranges]
         pool.starmap(process_chunk, args)
 
     all_results = list(shared_results)
-
     matched_rows = []
     for frame, chn, timestamp_sec in all_results:
-        if chn in chn_excel_set:
-            ms = int(timestamp_sec * 1000)
-            matched_rows.append({
-                "CHN": chn,
-                "Frame": frame,
-                "Timestamp_ms": ms
-            })
+        ms = int(timestamp_sec * 1000)
+        matched_rows.append({"CHN": chn, "Frame": frame, "Timestamp_ms": ms})
 
     df_matched = pd.DataFrame(matched_rows)
-
     final_df = pd.merge(filtered_df, df_matched, left_on="Start Chainage", right_on="CHN", how="inner")
     final_df.drop(columns=["CHN"], inplace=True)
 
@@ -220,4 +215,4 @@ if __name__ == "__main__":
     ]
 
     final_df.to_csv("output_matched.csv", index=False)
-    print(f"Done in {round(time.time() - start, 2)}s. Output saved as 'output_matched.csv'")
+    print(f"\n✅ Done in {round(time.time() - start, 2)}s. Output saved as 'output_matched.csv'")
