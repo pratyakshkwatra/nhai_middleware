@@ -229,5 +229,6 @@ if __name__ == "__main__":
         "frame", "timestamp"
     ]
 
+    final_df.sort_values(by="timestamp", inplace=True)
     final_df.to_csv("output_matched.csv", index=False)
     print(f"\n✅ Done in {round(time.time() - start, 2)}s. Output saved as 'output_matched.csv'")
