@@ -119,7 +119,7 @@ nhai-middleware/
 
 ## 🎥 Demo
 
-### ![Demo Video](https://github.com/pratyakshkwatra/nhai_middleware/blob/main/assets/demo.mp4)
+[![Watch the Demo](https://img.youtube.com/vi/2OiS_hhx8nE/hqdefault.jpg)](https://youtu.be/2OiS_hhx8nE)
 ---
 
 ## 📄 License
