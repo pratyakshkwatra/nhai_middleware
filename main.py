@@ -191,7 +191,6 @@ def main(video_path: str, excel_path: str, lane_name: str, roadway_id: int, lane
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
 
     fps, total_frames = load_video_metadata(video_path)
-    print(f"🎞️ Video FPS: {fps:.2f} | Total Frames: {total_frames}")
 
     crop_box = detect_crop_box(video_path)
     if not crop_box:
@@ -199,20 +198,8 @@ def main(video_path: str, excel_path: str, lane_name: str, roadway_id: int, lane
 
     filtered_df, chn_excel_list = load_excel_data(excel_path, lane_name)
     chunks = generate_chunks(total_frames, multiprocessing.cpu_count())
-    print(f"⚙️ Spawning {len(chunks)} processes...")
 
     results = run_parallel_processing(chunks, crop_box, video_path, fps, chn_excel_list)
     merge_results_and_save(results, filtered_df, output_csv)
-
-    print(f"\n✅ Done in {round(time.time() - start, 2)}s. Output saved as '{output_csv}'")
-
-
-if __name__ == "__main__":
-    main(
-        video_path='L2.mp4',
-        excel_path='nhai.xlsx',
-        lane_name='L2',
-        roadway_id=1,
-        lane_id=2
-    )
+    return True
 
