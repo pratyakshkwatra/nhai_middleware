@@ -136,4 +136,4 @@ If you found this useful, consider giving a ⭐ on GitHub.
 
 ---
 
-Built for India’s roads - and the people who inspect them.
+Built with 🛣️ and ❤️ by [Pratyaksh Kwatra](https://github.com/pratyakshkwatra) & [Aarav Rai](https://github.com/Aarav-Rai).
